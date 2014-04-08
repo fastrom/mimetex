@@ -1044,9 +1044,6 @@ if ( msgfp!=NULL && msglevel>=9999 )
     width,height,pixsz); fflush(msgfp); }
 /* --- allocate and initialize raster struct --- */
 rp = (raster *)malloc(sizeof(raster));	/* malloc raster struct */
-if ( msgfp!=NULL && msglevel>=9999 )
-  { fprintf(msgfp,"new_raster> rp=malloc(%d) returned (%s)\n",
-    sizeof(raster),(rp==NULL?"null ptr":"success")); fflush(msgfp); }
 if ( rp == (raster *)NULL )		/* malloc failed */
   goto end_of_job;			/* return error to caller */
 rp->width = width;			/* store width in raster struct */
@@ -15402,11 +15399,7 @@ STATIC logdata mimelog[]
 
 
 /* --- entry point --- */
-int	main ( int argc, char *argv[]
-	  #ifdef DUMPENVP
-	    , char *envp[]
-	  #endif
-	)
+int mimeTeX ( int argc, char *argv[], unsigned char *outgif)
 {
 /* -------------------------------------------------------------------------
 Allocations and Declarations
@@ -15528,33 +15521,8 @@ shrinkfactor = shrinkfactors[NORMALSIZE]; /* set shrinkfactor */
 for ( ipattern=1; ipattern<=51; ipattern++ )
  patternnumcount0[ipattern] = patternnumcount1[ipattern] = 0;
 /* ---
- * check QUERY_STRING query for expression overriding command-line arg
- * ------------------------------------------------------------------- */
-if ( query != NULL )			/* check query string from environ */
-  if ( strlen(query) >= 1 ) {		/* caller gave us a query string */
-    strncpy(expression,query,MAXEXPRSZ); /* so use it as expression */
-    expression[MAXEXPRSZ] = '\000';	/* make sure it's null terminated */
-    if ( 0 )				/*true to remove leading whitespace*/
-      while ( isspace(*expression) && *expression!='\000' )
-        {strsqueeze(expression,1);}	/* squeeze out white space */
-    isquery = 1; }			/* and set isquery flag */
-if ( !isquery ) {			/* empty query string */
-  char *host = getenv("HTTP_HOST"),	/* additional getenv("") results */
-  *name = getenv("SERVER_NAME"), *addr = getenv("SERVER_ADDR");
-  if ( host!=NULL || name!=NULL || addr!=NULL ) { /* assume http query */
-    isquery = 1;			/* set flag to signal query */
-    if ( exitstatus == 0 ) exitstatus = errorstatus; /* signal error */
-    strcpy(expression,			/* and give user an error message */
-    "\\red\\small\\rm\\fbox{\\begin{gather}\\LaTeX~expression~not~supplied"
-    "\\\\i.e.,~no~?query\\_string~given~to~mimetex.cgi\\end{gather}}"); }
-  isqempty = 1;				/* signal empty query string */
-  } /* --- end-of-if(!isquery) --- */
-/* ---
  * process command-line input args (if not a query)
  * ------------------------------------------------ */
-if ( !isquery				/* don't have an html query string */
-||   ( /*isqempty &&*/ argc>1) )	/* or have command-line args */
- {
  char	*argsignal = ARGSIGNAL,		/* signals start of mimeTeX args */
 	stopsignal[32] = "--";		/* default Unix end-of-args signal */
  int	iarg=0, argnum=0,		/*argv[] index for command-line args*/
@@ -15615,11 +15583,6 @@ if ( !isquery				/* don't have an html query string */
 	  /*infilearg = (-1);*/ }	/* and set infilearg */
       else nbadargs++;			/* infile and expression invalid */
     } /* --- end-of-while(argc>++argnum) --- */
- if ( msglevel>=999 && msgfp!=NULL )	/* display command-line info */
-  { fprintf(msgfp,"argc=%d, progname=%s, #args=%d, #badargs=%d\n",
-    argc,progname,nargs,nbadargs);
-    fprintf(msgfp,"cachepath=\"%.50s\" pathprefix=\"%.50s\"\n",
-    cachepath,pathprefix); }
  /* ---
   * decide whether command-line input overrides query_string
   * -------------------------------------------------------- */
@@ -15654,226 +15617,6 @@ if ( !isquery				/* don't have an html query string */
 	exprsz += strlen(instring); }	/* update expression buffer length */
      fclose ( infile ); }	/*close input file after reading expression*/
   } /* --- end-of-if(infilearg>0) --- */
- /* ---
-  * xlate +++'s to blanks only if query
-  * ----------------------------------- */
- if ( !isquery ) isplusblank = 0;	/* don't xlate +++'s to blanks */
- /* ---
-  * check if emulating query (for testing)
-  * -------------------------------------- */
- if ( isqforce ) isquery = 1;		/* emulate query string processing */
- /* ---
-  * check if emitting pbm/pgm graphic
-  * --------------------------------- */
- if ( isgoodargs && ispbmpgm > 0 )	/* have a good -g arg */
-  if ( 1 && gif_outfile != NULL )	/* had an -e switch with file */
-   if ( *gif_outfile != '\000' )	/* make sure string isn't empty */
-     { pbm_outfile = gif_outfile;	/* use -e switch file for pbm/pgm */
-       gif_outfile = (char *)NULL;	/* reset gif output file */
-       /*isdumpimage--;*/ }		/* and decrement -e count */
- } /* --- end-of-if(!isquery) --- */
-/* ---
- * check for <form> input
- * ---------------------- */
-if ( isquery ) {				/* must be <form method="get"> */
- if ( !memcmp(expression,"formdata",8) ) /*must be <input name="formdata"> */
-  { char *delim=strchr(expression,'=');	/* find equal following formdata */
-    if ( delim != (char *)NULL )	/* found unescaped equal sign */
-      {strsqueezep(expression,delim+1);} /* so shift name= out */
-    while ( (delim=strchr(expression,'+')) != NULL ) /*unescaped plus sign*/
-      *delim = ' ';			/* is "shorthand" for blank space */
-    /*unescape_url(expression,1);*/	/* convert unescaped %xx's to chars */
-    unescape_url(expression,0);		/* convert all %xx's to chars */
-    unescape_url(expression,0);		/* repeat */
-    if(0) msglevel = FORMLEVEL;		/* msglevel for forms */
-    isformdata = 1; }			/* set flag to signal form data */
- else /* --- query, but not <form> input --- */
-    unescape_url(expression,0); }	/* convert _all_ %xx's to chars */
-/* ---
- * check queries for prefixes/suffixes/embedded that might cause problems
- * ---------------------------------------------------------------------- */
-/* --- expression whose last char is \ --- */
-if ( lastchar(expression) == '\\' )	/* last char is backslash */
-  strcat(expression," ");		/* assume "\ " lost the final space*/
-/* ---
- * check queries for embedded prefixes signalling special processing
- * ----------------------------------------------------------------- */
-if ( isquery )				/* only check queries */
- {
- /* --- check for msglevel=###$ prefix --- */
- if ( !memcmp(expression,"msglevel=",9) ) /* query has msglevel prefix */
-   { char *delim=strchr(expression,'$'); /* find $ delim following msglevel*/
-     if ( delim != (char *)NULL )	/* check that we found delim */
-      {	*delim = '\000';		/* replace delim with null */
-	if ( seclevel <= 9 )		/* permit msglevel specification */
-	  msglevel = atoi(expression+9); /* interpret ### in msglevel###$ */
-	strsqueezep(expression,delim+1); } } /* squeeze out prefix & delim */
- /* --- next check for logfile=xxx$ prefix (must follow msglevel) --- */
- if ( !memcmp(expression,"logfile=",8) ) /* query has logfile= prefix */
-   { char *delim=strchr(expression,'$'); /* find $ delim following logfile=*/
-     if ( delim != (char *)NULL )	/* check that we found delim */
-      {	*delim = '\000';		/* replace delim with null */
-	if ( seclevel <= 3 )		/* permit logfile specification */
-	  strcpy(logfile,expression+8);	/* interpret xxx in logfile=xxx$ */
-	strsqueezep(expression,delim+1); } } /* squeeze out prefix & delim */
- } /* --- end-of-if(isquery) --- */
-/* ---
- * log query (e.g., for debugging)
- * ------------------------------- */
-if ( isquery )				/* only log query_string's */
- if ( msglevel >= LOGLEVEL		/* check if logging */
- &&   seclevel <= 5 )			/* and if logging permitted */
-  if ( logfile != NULL )		/* if a logfile is given */
-   if ( *logfile != '\000' ) {		/*and if it's not an empty string*/
-    if ( (msgfp=fopen(logfile,"a"))	/* open logfile for append */
-    !=   NULL )				/* ignore logging if can't open */
-     {
-     /* --- default logging --- */
-     logger(msgfp,msglevel,expression,mimelog); /* log query */
-     /* --- additional debug logging (argv and environment) --- */
-     if ( msglevel >= 9 )		/* log environment */
-      { int i;  /*char name[999],*value;*/
-	fprintf(msgfp,"Command-line arguments...\n");
-	if ( argc < 1 )			/* no command-line args */
-	 fprintf(msgfp,"  ...argc=%d, no argv[] variables\n",argc);
-	else
-	 for ( i=0; i<argc; i++ )	/* display all argv[]'s */
-	  fprintf(msgfp,"  argv[%d] = \"%s\"\n",i,argv[i]);
-	#ifdef DUMPENVP			/* char *envp[] available for dump */
-	fprintf(msgfp,"Environment variables (using envp[])...\n");
-	if ( envp == (char **)NULL )	/* envp not provided */
-	 fprintf(msgfp,"  ...envp[] environment variables not available\n");
-	else
-	 for ( i=0; ; i++ )		/* display all envp[]'s */
-	  if ( envp[i] == (char *)NULL ) break;
-	  else fprintf(msgfp,"  envp[%d] = \"%s\"\n",i,envp[i]);
-	#endif /* --- DUMPENVP ---*/
-	#ifdef DUMPENVIRON	/* skip what should be redundant output */
-	fprintf(msgfp,"Environment variables (using environ)...\n");
-	if ( environ == (char **)NULL )	/* environ not provided */
-	 fprintf(msgfp,"  ...extern environ variables not available\n");
-	else
-	 for ( i=0; ; i++ )		/*display environ[] and getenv()'s*/
-	  if ( environ[i] == (char *)NULL ) break;
-	  else {
-	    strcpy(name,environ[i]);	/* set up name for getenv() arg */
-	    if ( (value=strchr(name,'=')) != NULL ) /* = delimits name */
-	      {	*value = '\000';	/* got it, so null-terminate name */
-		value = getenv(name); }	/* and look up name using getenv() */
-	    else strcpy(name,"NULL");	/* missing = delim in environ[i] */
-	    fprintf(msgfp,"environ[%d]: \"%s\"\n\tgetenv(%s) = \"%s\"\n",
-	    i,environ[i],name,(value==NULL?"NULL":value));
-	    } /* --- end-of-if/else --- */
-	#endif /* --- DUMPENVIRON ---*/
-      } /* --- end-of-if(msglevel>=9) --- */
-     /* --- close log file if no longer needed --- */
-     if ( msglevel < DBGLEVEL )		/* logging, but not debugging */
-      {	fprintf(msgfp,"%s\n",dashes);	/* so log separator line, */
-	fclose(msgfp);			/* close logfile immediately, */
-	msgfp = NULL; }			/* and reset msgfp pointer */
-     else
-	isqlogging = 1;			/* set query logging flag */
-     } /* --- end-of-if(msglevel>=LOGLEVEL) --- */
-    else				/* couldn't open logfile */
-     msglevel = 0; }			/* can't emit messages */
-/* ---
- * prepend prefix to submitted expression
- * -------------------------------------- */
-if ( 1 || isquery )			/* queries or command-line */
- if ( *exprprefix != '\000' )		/* we have a prefix string */
-  { int npref = strlen(exprprefix);	/* #chars in prefix */
-    memmove(expression+npref+1,expression,strlen(expression)+1);/*make room*/
-    memcpy(expression,exprprefix,npref); /* copy prefix into expression */
-    expression[npref] = '{';		/* followed by { */
-    strcat(expression,"}"); }		/* and terminating } to balance { */
-/* ---
- * check if http_referer is allowed to use this image and to use \input{}
- * ---------------------------------------------------------------------- */
-if ( isquery ) {			/* not relevant if "interactive" */
- /* --- check -DREFERER=\"comma,separated,list\" of valid referers --- */
- if ( referer != NULL ) {		/* compiled with -DREFERER=\"...\" */
-  if ( strcmp(referer,"month") != 0 )	/* but it's *only* "month" signal */
-   if ( ishttpreferer )			/* or called "standalone" */
-    if ( !isstrstr(http_referer,referer,0) ) { /* invalid http_referer */
-      expression = invalid_referer_msg; /* so give user error message */
-      isinvalidreferer = 1; } }		/* and signal invalid referer */
- else					/* compiled without -DREFERER= */
-  if ( reflevels > 0 ) {		/*match referer unless -DREFLEVELS=0*/
-   /* --- check topmost levels of http_referer against http_host --- */
-   if ( ishttpreferer			/* have http_referer */
-   &&   !isempty(referer_match) )	/* and something to match it with */
-    if ( !urlncmp(http_referer,referer_match,reflevels) ) { /*match failed*/
-     strcpy(exprbuffer,invalid_referer_match); /* init error message */
-     strreplace(exprbuffer,"SERVER_NAME", /* and then replace SERVER_NAME */
-       strdetex(urlprune(referer_match,reflevels),1),0);/*with referer_match*/
-     isinvalidreferer = 1; }		/* and signal invalid referer */
-   } /* --- end-of-if(reflevels>0) --- */
- /* --- check -DINPUTREFERER=\"comma,separated,list\" of \input users --- */
- inputseclevel = INPUTSECURITY;		/* set default input security */
- if ( inputreferer != NULL ) {		/* compiled with -DINPUTREFERER= */
-  if ( http_referer == NULL )		/* but no http_referer given */
-   inputseclevel = (-1);		/* unknown user can't \input{} */
-  else					/*have inputreferer and http_referer*/
-   if ( !isstrstr(http_referer,inputreferer,0) ) /*http_referer can't \input*/
-    inputseclevel = (-1);		/* this known user can't \input{} */
-  } /* --- end-of-if(inputreferer!=NULL) --- */
- } /* --- end-of-if(isquery) --- */
-/* ---
- * check if referer contains "month" signal
- * ---------------------------------------- */
-if ( isquery )				/* not relevant if "interactive" */
- if ( referer != NULL )			/* nor if compiled w/o -DREFERER= */
-  if ( !isinvalidreferer )		/* nor if already invalid referer */
-   if ( strstr(referer,"month") != NULL ) /* month check requested */
-    if ( !ismonth(progname) )		/* not executed as mimetexJan-Dec */
-     { expression = invalid_referer_msg; /* so give user error message */
-       isinvalidreferer = 1; }		/* and signal invalid referer */
-/* ---
- * check if http_referer is to be denied access
- * -------------------------------------------- */
-if ( isquery )				/* not relevant if "interactive" */
- if ( !isinvalidreferer )		/* nor if already invalid referer */
-  { int	iref=0, msgnum=(-999);		/* denyreferer index, message# */
-    for ( iref=0; msgnum<0; iref++ ) {	/* run through denyreferer[] table */
-      char *deny = denyreferer[iref].referer; /* referer to be denied */
-      if ( deny == NULL ) break;	/* null signals end-of-table */
-      if ( msglevel>=999 && msgfp!=NULL ) /* debugging */
-	{fprintf(msgfp,"main> invalid iref=%d: deny=%s http_referer=%s\n",
-	 iref,deny,(http_referer==NULL?"null":http_referer)); fflush(msgfp);}
-      if ( *deny == '\000' )		/* signal to check for no referer */
-	{ if ( http_referer == NULL )	/* http_referer not supplied */
-	   msgnum = denyreferer[iref].msgnum; } /* so set message# */
-      else				/* have referer to check for */
-       if ( http_referer != NULL )	/* and have referer to be checked */
-	if ( isstrstr(http_referer,deny,0) ) /* invalid http_referer */
-	 msgnum = denyreferer[iref].msgnum; /* so set message# */
-      } /* --- end-of-for(iref) --- */
-    if ( msgnum >= 0 )			/* deny access to this referer */
-     { if ( msgnum > maxmsgnum ) msgnum = 0; /* keep index within bounds */
-       expression = msgtable[msgnum];	/* set user error message */
-       isinvalidreferer = 1; }		/* and signal invalid referer */
-  } /* --- end-of-if(!isinvalidreferer) --- */
-/* --- also check maximum query_string length if no http_referer given --- */
-if ( isquery )				/* not relevant if "interactive" */
- if ( !isinvalidreferer )		/* nor if already invalid referer */
-  if ( !ishttpreferer )			/* no http_referer supplied */
-   if ( strlen(expression) > norefmaxlen ) { /* query_string too long */
-    if ( isempty(referer_match) )	/* no referer_match to display */
-     expression = invalid_referer_msg;	/* set invalid http_referer message*/
-    else {				/* error with referer_match display*/
-     strcpy(exprbuffer,invalid_referer_match); /* init error message */
-     strreplace(exprbuffer,"SERVER_NAME", /* and then replace SERVER_NAME */
-       strdetex(urlprune(referer_match,reflevels),1),0); } /*with host_http*/
-     isinvalidreferer = 1; }		/* and signal invalid referer */
-/* ---
- * check for "advertisement"
- * ------------------------- */
-/* --- check if advertisement messages only for one particular host --- */
-if ( !isempty(host_showad) )		/* messages only for this referer */
- if ( !isempty(referer_match) )		/* have HTTP_HOST or SERVER_NAME */
-   if ( strstr(referer_match,host_showad) /* see if this host sees ad */
-   == NULL )				/* not mimetex host for ad */
-     adfrequency = 0;			/* turn off advertisements */
 /* --- check for advertisement directive (\advertisement) --- */
 if ( strreplace(expression,"\\advertisement","",0) /*remove \advertisement*/
 >=   1 ) adfrequency = 1;		/* force advertisement display */
@@ -15883,82 +15626,6 @@ if ( adfrequency > 0 ) {		/* advertising enabled */
   while ( npump-- >= 0 ) rand();	/* pre-pump rand() before use */
   if ( (1+rand())%adfrequency == 0 ) {	/* once every adfrequency calls */
     advertisement(expression,adtemplate); } } /*wrap expression in advert*/
-/* ---
- * check for image caching (and whether or not caching content type)
- * ----------------------------------------------------------------- */
-if ( strstr(expression,"\\counter")  != NULL /* can't cache \counter{} */
-||   strstr(expression,"\\input")    != NULL /* can't cache \input{} */
-||   strstr(expression,"\\today")    != NULL /* can't cache \today */
-||   strstr(expression,"\\calendar") != NULL /* can't cache \calendar */
-||   strstr(expression,"\\nocach")   != NULL /* no caching requested */
-||   isformdata				/* don't cache user form input */
- ) { iscaching = 0;			/* so turn caching off */
-     maxage = 5; }			/* and set max-age to 5 seconds */
-if ( strstr(expression,"\\depth")    != NULL ) /* cache content-type lines */
-     iscachecontenttype = 1;		/* set flag to cache content-type */
-if ( strstr(expression,"\\nodepth")  != NULL ) /* don't cache content-type */
-     iscachecontenttype = 0;		/*set flag to not cache content-type*/
-if ( isquery )				/* don't cache command-line images */
- if ( iscaching )			/* image caching enabled */
-  {
-  /* --- set up path to cached image file --- */
-  char *md5hash = md5str(expression);	/* md5 hash of expression */
-  if ( md5hash == NULL )		/* failed for some reason */
-    iscaching = 0;			/* so turn off caching */
-  else
-   {
-   strcpy(cachefile,cachepath);		/* start with (relative) path */
-   strcat(cachefile,md5hash);		/* add md5 hash of expression */
-   strcat(cachefile,".gif");		/* finish with .gif extension */
-   gif_outfile = cachefile;		/* signal GIF_Create() to cache */
-   /* --- emit mime content-type line --- */
-   if ( 0 && isemitcontenttype )	/* now done in emitcache() */
-    { fprintf( stdout, "Cache-Control: max-age=%d\n",maxage );
-      if ( abs(valign) < 999 )		/* have vertical align */
-        fprintf( stdout, "Vertical-Align: %d\n",valign );
-      fprintf( stdout, "Content-type: image/gif\n\n" ); }
-   /* --- emit cached image if it already exists --- */
-   if ( emitcache(cachefile,maxage,valign,0) > 0 ) /* cached image emitted */
-    goto end_of_job;			/* so nothing else to do */
-   /* --- log caching request --- */
-   if ( msglevel >= 1			/* check if logging */
-   /*&&   seclevel <= 5*/ )		/* and if logging permitted */
-    if ( cachelog != NULL )		/* if a logfile is given */
-     if ( *cachelog != '\000' )		/*and if it's not an empty string*/
-      { char filename[256];		/* construct cachepath/cachelog */
-        FILE *filefp=NULL;		/* fopen(filename) */
-        strcpy(filename,cachepath);	/* start with (relative) path */
-        strcat(filename,cachelog);	/* add cache log filename */
-        if ( (filefp=fopen(filename,"a")) /* open cache logfile for append */
-        !=   NULL )			/* ignore logging if can't open */
-	 { int isreflogged = 0;		/* set true if http_referer logged */
-	   fprintf(filefp,"%s                 %s\n", /* timestamp, md5 file */
-	    timestamp(TZDELTA,0),cachefile+strlen(cachepath)); /*skip path*/
-	   fprintf(filefp,"%s\n",expression); /* expression in filename */
-	   if ( http_referer != NULL )	/* show referer if we have one */
-	    if ( *http_referer != '\000' )    /* and if not an empty string*/
-	      {	int loglen = strlen(dashes);  /* #chars on line in log file*/
-		char *refp = http_referer;    /* line to be printed */
-		isreflogged = 1;	      /* signal http_referer logged*/
-		while ( 1 ) {		      /* printed in parts if needed*/
-		  fprintf(filefp,"%.*s\n",loglen,refp); /* print a part */
-		  if ( strlen(refp) <= loglen ) break;  /* no more parts */
-		  refp += loglen; } }	      /* bump ptr to next part */
-	   if ( !isreflogged )		      /* http_referer not logged */
-	     fprintf(filefp,"http://none\n"); /* so log dummy referer line */
-	   fprintf(filefp,"%s\n",dashes);     /* separator line */
-	   fclose(filefp); }		     /* close logfile immediately */
-      } /* --- end-of-if(cachelog!=NULL) --- */
-   } /* --- end-of-if/else(md5hash==NULL) --- */
-  } /* --- end-of-if(iscaching) --- */
-/* ---
- * emit copyright, gnu/gpl notice (if "interactive")
- * ------------------------------------------------- */
-if ( !isdumpimage && !ispbmpgm )	/* don't mix ascii with image dump */
- if ( (!isquery||isqlogging) && msgfp!=NULL ) { /* called from command line */
-   fprintf(msgfp,"%s\n%s\n",copyright1,copyright2); /* display copyright */
-   fprintf(msgfp,"Most recent revision: %s\n",REVISIONDATE); /*revision date*/
-   } /* --- end-of-if(!isquery...) --- */
 /* -------------------------------------------------------------------------
 rasterize expression and put a border around it
 -------------------------------------------------------------------------- */
@@ -16067,33 +15734,6 @@ if ( isaa )				/* we want anti-aliased bitmap */
 	break;
        } /* --- end-of-switch(aaalgorithm) --- */
     /* ---
-     * emit aalookup() pattern# counts/percents diagnostics
-     * ---------------------------------------------------- */
-    if ( !isquery && msgfp!=NULL && msglevel>=99 ) { /*emit patternnumcounts*/
-     int pcount0=0, pcount1=0;		/* init total w,b center counts */
-     for ( ipattern=1; ipattern<=51; ipattern++ ) { /*each possible pattern*/
-      if ( ipattern > 1 )		/* ignore all-white squares */
-       pcount0 += patternnumcount0[ipattern];  /* bump total white centers */
-      pcount1 += patternnumcount1[ipattern]; } /* bump total black centers */
-     if ( pcount0+pcount1 > 0 )		/* have pcounts (using aalookup) */
-      fprintf(msgfp, "  aalookup() patterns excluding#1 white"
-      " (%%'s are in tenths of a percent)...\n");
-     for ( ipattern=1; ipattern<=51; ipattern++ ) { /*each possible pattern*/
-      int tot = patternnumcount0[ipattern] + patternnumcount1[ipattern];
-      if ( tot > 0 )			/* this pattern occurs in image */
-       fprintf(msgfp,
-       "  pattern#%2d: %7d(%6.2f%%) +%7d(%6.2f%%) =%7d(%6.2f%%)\n",
-       ipattern, patternnumcount0[ipattern],  (ipattern<=1? 999.99:
-       1000.*((double)patternnumcount0[ipattern])/((double)pcount0)),
-       patternnumcount1[ipattern],
-       1000.*((double)patternnumcount1[ipattern])/((double)pcount1),
-       tot,  (ipattern<=1? 999.99:
-       1000.*((double)tot)/((double)(pcount0+pcount1))) ); }
-      if ( pcount0+pcount1 > 0 )	/* true when using aalookup() */
-       fprintf(msgfp,
-       "all patterns: %7d          +%7d          =%7d  total pixels\n",
-       pcount0,pcount1,pcount0+pcount1); }
-    /* ---
      * apply magstep if requested and not already done to bitmap above
      * --------------------------------------------------------------- */
       if ( 1 ) {			/* or use rastmag() above instead */
@@ -16132,110 +15772,15 @@ if ( isaa )				/* we want anti-aliased bitmap */
       type_pbmpgm(&pbm_raster,pbmpgmtype,pbm_outfile); } /*grayscale file*/
     } /* --- end-of-if(isaa) --- */
   } /* --- end-of-if(isaa) --- */
-/* -------------------------------------------------------------------------
-display results on msgfp if called from command line (usually for testing)
--------------------------------------------------------------------------- */
-if ( (!isquery||isqlogging) || msglevel >= 99 )	/*command line or debuging*/
- if ( !isdumpimage && !ispbmpgm )	/* don't mix ascii with image dump */
-  {
-  /* ---
-   * display ascii image of rasterize()'s rasterized bitmap
-   * ------------------------------------------------------ */
-  if ( !isss )				/* no bitmap for supersampling */
-    { fprintf(msgfp,"\nAscii dump of bitmap image...\n");
-      type_raster(bp,msgfp); }		/* emit ascii image of raster */
-  /* ---
-   * display anti-aliasing results applied to rasterized bitmap
-   * ---------------------------------------------------------- */
-  if ( isaa )				/* if anti-aliasing applied */
-    {
-    int	igray;				/* colors[] index */
-    /* --- anti-aliased bytemap image --- */
-    if ( msgfp!=NULL && msglevel>=9 )	/* don't usually emit raw bytemap */
-      {	fprintf(msgfp,"\nHex dump of anti-aliased bytemap, " /*emit bytemap*/
-	"asterisks denote \"black\" bytes (value=%d)...\n",grayscale-1);
-	type_bytemap(bytemap_raster,grayscale,
-        raster_width,raster_height,msgfp); }
-    /* --- colormap image --- */
-    fprintf(msgfp,"\nHex dump of colormap indexes, "  /* emit colormap */
-      "asterisks denote \"black\" bytes (index=%d)...\n",ncolors-1);
-    type_bytemap(colormap_raster,ncolors,
-    raster_width,raster_height,msgfp);
-    /* --- rgb values corresponding to colormap indexes */
-    fprintf(msgfp,"\nThe %d colormap indexes denote rgb values...",ncolors);
-    for ( igray=0; igray<ncolors; igray++ ) /* show colors[] values */
-      fprintf(msgfp,"%s%2x-->%3d", (igray%5?"   ":"\n"),
-	igray,(int)(colors[ncolors-1]-colors[igray]));
-    fprintf(msgfp,"\n");		/* always needs a final newline */
-    } /* --- end-of-if(isaa) --- */
-  } /* --- end-of-if(!isquery||msglevel>=9) --- */
-/* -------------------------------------------------------------------------
-emit xbitmap or gif image, and exit
--------------------------------------------------------------------------- */
-if (  (isquery     && !ispbmpgm)	/* called from browser (usual) */
-||    (isdumpimage && !ispbmpgm)	/* or to emit gif dump of image */
-||    (msglevel    >= 99) )		/* or for debugging */
- {
- int  igray = 0;			/* grayscale index */
- #if defined(GIF)			/* compiled to emit gif */
  /* ------------------------------------------------------------------------
  emit GIF image
  ------------------------------------------------------------------------- */
-  /* --- don't use memory buffer if outout file given --- */
-  if ( gif_outfile != NULL ) isinmemory = 0; /* reset memory buffer flag */
-  /* --- construct contenttype[] buffer containing mime headers --- */
-  if ( 1 ) {				/* always construct buffer */
-    sprintf( contenttype, "Cache-Control: max-age=%d\n", maxage );
-    /*sprintf(contenttype+strlen(contenttype),
-       "Expires: Fri, 31 Oct 2003 23:59:59 GMT\n" );*/
-    /*sprintf(contenttype+strlen(contenttype),
-       "Last-Modified: Wed, 15 Oct 2003 01:01:01 GMT\n");*/
-    if ( abs(valign) < 999 )		/* have Vertical-Align: header info*/
-      sprintf( contenttype+strlen(contenttype),
-       "Vertical-Align: %d\n", valign );
-    sprintf( contenttype+strlen(contenttype),
-      "Content-type: image/gif\n\n" ); }
-  /* --- emit mime content-type line --- */
-  if ( isemitcontenttype		/* content-type lines wanted */
-  &&   !isdumpimage			/* don't mix ascii with image dump */
-  &&   !isinmemory			/* done below if in memory */
-  &&   !iscaching )			/* done by emitcache() if caching */
-    { fputs(contenttype,stdout); }	/* emit content-type: header buffer*/
-  /* --- write output to memory buffer, possibly for testing --- */
-  if ( isinmemory			/* want gif written to memory */
-  ||   isdumpbuffer )			/*or dump memory buffer for testing*/
-   if ( gif_outfile == NULL )		/* and don't already have a file */
-    { *gif_buffer = '\000';		/* init buffer as empty string */
-      memset(gif_buffer,0,MAXGIFSZ);	/* zero out buffer */
-      gif_outfile = gif_buffer;		/* and point outfile to buffer */
-      if ( isdumpbuffer )		/* buffer dump test requested */
-	isdumpbuffer = 999; }		/* so signal dumping to buffer */
+ int igray=0;
+  memset(outgif, 0, MAXGIFSZ);	/* zero out buffer */
   /* --- initialize gifsave library and colors --- */
-  if ( msgfp!=NULL && msglevel>=999 )
-    { fprintf(msgfp,"main> calling GIF_Create(*,%d,%d,%d,8)\n",
-      raster_width,raster_height,ncolors); fflush(msgfp); }
-  while ( 1 )		/* init gifsave lib, and retry if caching fails */
-    { int status = GIF_Create(gif_outfile,
-        raster_width,raster_height, ncolors, 8);
-      if ( status == 0 ) break;		/* continue if succeeded */
-      if ( iscaching == 0 ) goto end_of_job; /* quit if failed */
-      iscaching = 0;			/* retry without cache file */
-      isdumpbuffer = 0;			/* reset isdumpbuffer signal */
-      if ( isquery ) isinmemory = 1;	/* force in-memory image generation*/
-      if ( isinmemory ) {		/* using memory buffer */
-	gif_outfile = gif_buffer;	/* emit images to memory buffer */
-	*gif_outfile = '\000'; }	/* empty string signals buffer */
-      else {				/* or */
-	gif_outfile = (char *)NULL;	/* emit images to stdout */
-	if ( isemitcontenttype ) {	/* content-type lines wanted */
-	  fprintf( stdout, "Cache-Control: max-age=%d\n",maxage );
-	  fprintf( stdout, "Content-type: image/gif\n\n" ); } }
-    } /* --- end-of-while(1) --- */
+  GIF_Create(outgif, raster_width, raster_height, ncolors, 8);
   GIF_SetColor(0,bgred,bggreen,bgblue);	/* background white if all 255 */
-  if ( !isaa )				/* just b&w if not anti-aliased */
-    { GIF_SetColor(1,fgred,fggreen,fgblue); /* foreground black if all 0 */
-      colors[0]='\000'; colors[1]='\001'; } /* and set 2 b&w color indexes */
-  else					/* set grayscales for anti-aliasing */
+
     /* --- anti-aliased, so call GIF_SetColor() for each colors[] --- */
     for ( igray=1; igray<ncolors; igray++ ) /* for colors[] values */
       {
@@ -16248,40 +15793,15 @@ if (  (isquery     && !ispbmpgm)	/* called from browser (usual) */
       /* --- set color index number igray to rgb values gray,gray,gray --- */
       GIF_SetColor(igray, red,green,blue); /*set gray,grayer,...,0=black*/
       } /* --- end-of-for(igray) --- */
+
   /* --- set gif color#0 (background) transparent --- */
   if ( istransparent )			/* transparent background wanted */
     GIF_SetTransparent(0);		/* set transparent background */
-  if (msgfp!=NULL && msglevel>=9) fflush(msgfp); /*flush debugging output*/
+
   /* --- emit compressed gif image (to stdout or cache file) --- */
   GIF_CompressImage(0, 0, -1, -1, GetPixel); /* emit gif */
-  GIF_Close();				/* close file */
-  if ( msgfp!=NULL && msglevel>=9 )
-    { fprintf(msgfp,"main> created gifSize=%d\n", gifSize);
-      fflush(msgfp); }
-  /* --- may need to emit image from cached file or from memory --- */
-  if ( isquery				/* have an actual query string */
-  ||   isdumpimage			/* or dumping image */
-  ||   msglevel >= 99 ) {		/* or debugging */
-  int maxage2 = (isdumpimage?(-1):maxage); /* no headers if dumping image */
-   if ( iscaching )			/* caching enabled */
-     emitcache(cachefile,maxage2,valign,0); /*emit cached image (hopefully)*/
-   else if ( isinmemory )		/* or emit image from memory buffer*/
-     emitcache(gif_buffer,maxage2,valign,1); } /*emitted from memory buffer*/
-  /* --- for testing, may need to write image buffer to file --- */
-  if ( isdumpbuffer > 99 )		/* gif image in memory buffer */
-   if ( gifSize > 0 )			/* and it's not an empty buffer */
-    { FILE *dumpfp = fopen("mimetex.gif","wb"); /* dump to mimetex.gif */
-      if ( dumpfp != NULL )		/* file opened successfully */
-	{ fwrite(gif_buffer,sizeof(unsigned char),gifSize,dumpfp); /*write*/
-	  fclose(dumpfp); }		/* and close file */
-    } /* --- end-of-if(isdumpbuffer>99) --- */
- #else
- /* ------------------------------------------------------------------------
- emit mime XBITMAP image
- ------------------------------------------------------------------------- */
-  xbitmap_raster(bp,stdout);		/* default emits mime xbitmap */
- #endif
- } /* --- end-of-if(isquery) --- */
+  GIF_Close();
+
 /* --- exit --- */
 end_of_job:
   if ( !isss )				/*bytemap raster in sp for supersamp*/
@@ -16291,73 +15811,23 @@ end_of_job:
   if ( 1 && sp != NULL ) delete_subraster(sp);	/* and free expression */
   if ( msgfp != NULL			/* have message/log file open */
   &&   msgfp != stdout )		/* and it's not stdout */
-   { fprintf(msgfp,"mimeTeX> successful end-of-job at %s\n",
-       timestamp(TZDELTA,0));
-     fprintf(msgfp,"%s\n",dashes);	/* so log separator line */
-     fclose(msgfp); }			/* and close logfile */
-  /* --- dump memory leaks in debug window if in MS VC++ debug mode --- */
-  #if defined(_CRTDBG_MAP_ALLOC)
-    _CrtDumpMemoryLeaks();
-  #endif
-  /* --- exit() if not running as Windows DLL (see CreateGifFromEq()) --- */
-  #if !defined(_USRDLL)
-    if ( errorstatus == 0 )		/*user doesn't want errors signalled*/
-      exitstatus = 0;			/* so reset error status */
-    exit ( exitstatus );
-  #endif
-} /* --- end-of-function main() --- */
+   { fclose(msgfp); }
 
-/* ==========================================================================
- * Function:	CreateGifFromEq ( expression, gifFileName )
- * Purpose:	shortcut method to create GIF file for expression,
- *		with antialising and all other capabilities
- * --------------------------------------------------------------------------
- * Arguments:	expression (I)	char *ptr to null-terminated string
- *				containing LaTeX expression to be rendred
- *		gifFileName (I)	char *ptr to null-terminated string
- *				containing name of output gif file
- * --------------------------------------------------------------------------
- * Returns:	( int )		exit value from main (0 if successful)
- * --------------------------------------------------------------------------
- * Notes:     o	This function is the entry point when mimeTeX is built
- *		as a Win32 DLL rather then a standalone app or CGI
- *	      o	Contributed to mimeTeX by Shital Shah.  See his homepage
- *		  http://www.shitalshah.com
- *	      o	Shital discusses the mimeTeX Win32 DLL project at
- *		  http://www.codeproject.com/dotnet/Eq2Img.asp
- *		and you can download his latest code from
- *		  http://www.shitalshah.com/dev/eq2img_all.zip
- * ======================================================================= */
-/* --- include function to expose Win32 DLL to outside world --- */
-#if defined(_USRDLL)
-  extern _declspec(dllexport)int _cdecl
-	CreateGifFromEq ( char *expression, char *gifFileName );
-#endif
-/* --- entry point --- */
-int	CreateGifFromEq ( char *expression, char *gifFileName )
+/* ------------------------- */
+   return gifSize;
+} /* --- end-of-function mimeTeX() --- */
+
+// mimetex-go
+int	RenderExprToGif ( char *expression, int size, unsigned char *outgif )
 {
-/* -------------------------------------------------------------------------
-Allocations and Declarations
--------------------------------------------------------------------------- */
-int	main();			/* main() akways returns an int */
-/* --- set constants --- */
-int	argc = 4;		/* count of args supplied to main() */
-char	*argv[5] =		/* command line args to run with -e option */
-	  { "MimeTeXWin32DLL", "-e", /* constant args */
-	    /*gifFileName, expression,*/ NULL, NULL, NULL };
-/* --- set argv[]'s not computable at load time --- */
-argv[2] = gifFileName;		/* args are -e gifFileName */
-argv[3] = expression;		/* and now  -e gifFileName expression */
-/* -------------------------------------------------------------------------
-Run mimeTeX in command-line mode with -e (export) option, and then return
--------------------------------------------------------------------------- */
-return	main ( argc, argv
-	  #ifdef DUMPENVP
-	    , NULL
-	  #endif
-	) ;
-} /* --- end-of-function CreateGifFromEq() --- */
-
+	int	argc = 5;
+	char *argv[5] =	{ "mimetex", "-d", "-s", /*size */ NULL, /* expression */ NULL };
+	char ssize[3];
+	snprintf ( ssize, 3, "%d", size );
+	argv[3] = ssize;
+	argv[4] = expression;
+	return mimeTeX ( argc, argv, outgif );
+}
 
 /* ==========================================================================
  * Function:	ismonth ( char *month )
@@ -16934,9 +16404,6 @@ if ( !isaa )				/* use bitmap if not anti-aliased */
   pixval = (int)getlongbit(bitmap_raster->pixmap,ipixel); /*pixel = 0 or 1*/
 else					/* else use anti-aliased grayscale*/
   pixval = (int)(colormap_raster[ipixel]); /* colors[] index number */
-if ( msgfp!=NULL && msglevel>=9999 )	/* dump pixel */
-  { fprintf(msgfp,"GetPixel> x=%d, y=%d  pixel=%d\n",x,y,pixval);
-    fflush(msgfp); }
 return pixval;
 } /* --- end-of-function GetPixel() --- */
 #endif /* gif */

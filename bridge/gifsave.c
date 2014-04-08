@@ -48,7 +48,7 @@ enum GIF_Code {
     GIF_OUTMEM
 };
 
-int  GIF_Create(const char *filename, int width, int height,
+int  GIF_Create(unsigned char *outgif, int width, int height,
 		int numcolors, int colorres);
 void GIF_SetColor(int colornum, int red, int green, int blue);
 void GIF_SetTransparent(int colornum);	/* (added by j.forkosh) */
@@ -173,37 +173,10 @@ static int  (*GetPixel)(int x, int y);
  *                GIF_ERRWRITE - Error opening the file
  */
 static int
-Create(const char *filename)
+Create(unsigned char *outbuf)
 {
-    OutBuffer = NULL;				/* (added by j.forkosh) */
-    isCloseOutFile = 0;				/* " */
-    gifSize = 0;				/* " */
-    if ( filename == NULL )			/* " */
-      {	OutFile = stdout;			/* " */
-	/*OutFile = fdopen(STDOUT_FILENO,"wb");*/ /* " doesn't work, */
-	#ifdef WINDOWS				/* "   so instead... */
-	  #ifdef HAVE_SETMODE			/* "   try to use setmode()*/
-	    if ( setmode ( fileno (stdout), O_BINARY) /* to  set stdout */
-	    == -1 ) ; /* handle error */	/* " to binary mode */
-	  #else					/* " setmode not available */
-	    #if 1				/* " */
-	      freopen ("CON", "wb", stdout);	/* " freopen stdout binary */
-	    #else				/* " */
-	      stdout = fdopen (STDOUT_FILENO, "wb"); /*fdopen stdout binary*/
-	    #endif				/* " */
-	  #endif				/* " */
-	#endif					/* " */
-      }						/* " */
-    else					/* " */
-      if ( *filename != '\000' )		/* " */
-	{ if ((OutFile = fopen(filename, "wb")) == NULL)
-	    return GIF_ERRCREATE;
-	  isCloseOutFile = 1;			/* (added by j.forkosh) */
-          if ( iscachecontenttype )		/* " cache headers in file */
-            if ( *contenttype != '\000' )	/* " have headers in buffer*/
-              fputs(contenttype,OutFile); }	/* " write buffered headers*/
-      else					/* " */
-	OutBuffer = (Byte *)filename;		/* " */
+    gifSize = 0;
+    OutBuffer = (Byte *)outbuf;
     return GIF_OK;
 }
 
@@ -224,13 +197,10 @@ Create(const char *filename)
 static int
 Write(const void *buf, unsigned len)
 {
-    if ( OutBuffer == NULL )			/* (added by j.forkosh) */
-      {	if (fwrite(buf, sizeof(Byte), len, OutFile) < len)
-	  return GIF_ERRWRITE; }
-    else					/* (added by j.forkosh) */
-      {	if ( gifSize+len <= maxgifSize )	/* " */
-	  memcpy(OutBuffer+gifSize,buf,len); }	/* " */
-    gifSize += len;				/* " */
+    if ( gifSize+len <= maxgifSize ) {
+      memcpy(OutBuffer+gifSize,buf,len);
+    } 
+    gifSize += len;
     return GIF_OK;
 }
 
@@ -250,13 +220,10 @@ Write(const void *buf, unsigned len)
 static int
 WriteByte(Byte b)
 {
-    if ( OutBuffer == NULL )			/* (added by j.forkosh) */
-      {	if (putc(b, OutFile) == EOF)
-	  return GIF_ERRWRITE; }
-    else					/* (added by j.forkosh) */
-      {	if ( gifSize < maxgifSize )		/* " */
-	  OutBuffer[gifSize] = b; }		/* " */
-    gifSize++;					/* " */
+    if ( gifSize < maxgifSize )	{
+      OutBuffer[gifSize] = b;
+    }
+    gifSize++;
     return GIF_OK;
 }
 
@@ -289,27 +256,6 @@ WriteWord(Word w)
     gifSize += 2;				/* " */
     return GIF_OK;
 }
-
-
-
-/*-------------------------------------------------------------------------
- *
- *  NAME          Close
- *
- *  DESCRIPTION   Close current OutFile.
- */
-static void
-Close(void)
-{
-    if ( isCloseOutFile )			/* (added by j.forkosh) */
-      fclose(OutFile);
-    OutBuffer = NULL;				/* (added by j.forkosh) */
-    isCloseOutFile = 0;				/* " */
-}
-
-
-
-
 
 /*========================================================================*
  =                                                                        =
@@ -864,8 +810,7 @@ WriteImageDescriptor(ImageDescriptor *id)
  *  DESCRIPTION   Create a GIF-file, and write headers for both screen
  *                and image.
  *
- *  INPUT         filename
- *                        name of file to create (including extension)
+ *  INPUT
  *                width   number of horisontal pixels on screen
  *                height  number of vertical pixels on screen
  *                numcolors
@@ -880,7 +825,7 @@ WriteImageDescriptor(ImageDescriptor *id)
  *                GIF_OUTMEM    - Out of memory allocating color table
  */
 int
-GIF_Create(const char *filename, int width, int height,
+GIF_Create(unsigned char *outgif, int width, int height,
 	   int numcolors, int colorres)
 {
     int q, tabsize;
@@ -894,7 +839,7 @@ GIF_Create(const char *filename, int width, int height,
     ScreenWidth = width;
 
     /* create file specified */
-    if (Create(filename) != GIF_OK)
+    if (Create(outgif) != GIF_OK)
         return GIF_ERRCREATE;
 
     /* write GIF signature */
@@ -1114,9 +1059,6 @@ GIF_Close(void)
 
     if (WriteImageDescriptor(&ID) != GIF_OK)
         return GIF_ERRWRITE;
-
-    /* close file */
-    Close();
 
     /* release color table */
     if (ColorTable) {

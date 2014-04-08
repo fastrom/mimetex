@@ -417,7 +417,7 @@ subraster
  * -------------------------------------------------------------------------- */
 subraster *rasterize();			/* declare rasterize */
 #define	make_raster(expression,size)	((rasterize(expression,size))->image)
-
+int RenderExprToGif ( char *expression, int size, unsigned char *gifout );
 
 /* -------------------------------------------------------------------------
 font family
