@@ -9,6 +9,6 @@ import "testing"
 func BenchmarkRender(b *testing.B) {
 	expr := `\mathcal{M}^{ax}_{in}\llbracket\gamma, \delta\rrbracket`
 	for i := 0; i < b.N; i++ {
-		data, _ := RenderGifBytes(expr, 5)
+		RenderGifBytes(expr, 5)
 	}
 }
