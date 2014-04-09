@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/xlab/mimetex-go"
+	"gopkg.in/mimetex.v1"
 )
 
 var size = flag.Int("s", 2, "set desired size in points (1-12)")

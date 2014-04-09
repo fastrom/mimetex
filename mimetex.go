@@ -7,7 +7,7 @@ import (
 	"image"
 	"image/gif"
 
-	"github.com/xlab/mimetex-go/bridge"
+	"gopkg.in/mimetex.v1/bridge"
 )
 
 // RenderImage produces an image.Image of rendered LaTeX expression expr,
