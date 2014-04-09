@@ -24,7 +24,7 @@ func main() {
 }
 ```
 
-See [GoDoc](https://godoc.org/gopkg.in/mimetex.v1) or test with **example/main.go**:
+See [GoDoc](https://godoc.org/gopkg.in/mimetex.v1) or test with [example/main.go](https://github.com/go-mimetex/mimetex/blob/master/example/main.go):
 
 	$ go build gopkg.in/mimetex.v1/example
 	$ ./example -s=4 'P = \bigoplus_{k,t \in \bar{\mathbb{Z}}} s(k,t)\gamma^k\delta^t'
