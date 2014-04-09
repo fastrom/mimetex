@@ -1,9 +1,13 @@
-## mimeTeX for Go
+## mimeTeX for Go [![Build Status](https://drone.io/github.com/go-mimetex/mimetex/status.png)](https://drone.io/github.com/go-mimetex/mimetex/latest)
 
 This is a Go package that allows rendering LaTeX documents to images directly, without any external dependencies and toolchains. That is implemented as native cgo binding to slightly modified [mimeTeX] codebase and uses its C API.
 [mimeTeX]: http://www.forkosh.com/mimetex.html
 
-#### I. Usage examples
+#### I. Installation
+
+	$ go get gopkg.in/mimetex.v1
+
+#### II. Usage examples
 
 ```Go
 package main
@@ -30,7 +34,7 @@ Also one might test with **example/main.go**:
 
 **DISCLAIMER:** Do not call this rendering "crappy". Pay some respect to the author of the mimeTeX, it took 10 years to write 10k SLOC in C and 10k lines of comments in total for each of them. See the source [mimetex.c](http://cl.ly/UtGw). I personally hate his approach, but the work is purely titanic.
 
-#### II. Benchmark
+#### III. Benchmark
 
 	$ go test -bench=.
 	PASS
@@ -39,11 +43,11 @@ Also one might test with **example/main.go**:
 	
 `0.77ms` to render `\mathcal{M}^{ax}_{in}\llbracket\gamma, \delta\rrbracket` on Intel i5. Also the package overhead is only `1.7MB`.
 
-#### III. Further work
+#### IV. Further work
 
 Implementing LaTeX rendering in pure language is always extremely hard. Take look at Java's pure implementation — [JLaTeXMath](http://forge.scilab.org/index.php/p/jlatexmath/source/tree/master/). For my needs this simple binding to mimeTeX is OK, at least until someone go crazy an this with Go.
 
-#### IV. Licenses
+#### V. Licenses
 
-* mimeTeX: GNU GPL
-* mimetex-go: [MIT](http://xlab.mit-license.org)
+* mimeTeX: [GNU GPL](https://github.com/go-mimetex/mimetex/blob/master/bridge/COPYING)
+* go-mimeTeX: [MIT](http://xlab.mit-license.org)
