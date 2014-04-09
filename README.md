@@ -16,7 +16,7 @@ import "gopkg.in/mimetex.v1"
 
 func main() {
 	expr := `x*y`
-	img, err := mimetex.RenderImage(expr, *size)
+	img, err := mimetex.RenderImage(expr, 5) // scale=5
 	if err != nil {
 		log.Fatalln("mimetex error: " + err.Error())
 	}
